@@ -15,7 +15,7 @@ add_executable(vitaos
 target_include_directories(vitaos PRIVATE ${VITASDK}/arm-vita-eabi/include/freetype2)
 target_link_libraries(vitaos
   vita2d freetype png jpeg z m bz2
-  curl zstd z pthread
+  curl ssl crypto zstd z pthread
   SceDisplay_stub SceGxm_stub SceSysmodule_stub SceCtrl_stub SceTouch_stub SceAudio_stub
   SceIme_stub SceCommonDialog_stub SceAppUtil_stub SceAppMgr_stub SceRtc_stub ScePower_stub
   ScePgf_stub ScePvf_stub SceIofilemgr_stub taihen_stub SceAvPlayer_stub SceKernelModulemgr_stub
