@@ -15,6 +15,16 @@ jobs:
     container: vitasdk/vitasdk:latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: OpenSSL 1.0.2
+        run: |
+          wget https://github.com/openssl/openssl/archive/OpenSSL_1_0_2u.tar.gz
+          tar xf OpenSSL_1_0_2u.tar.gz
+          cd openssl-OpenSSL_1_0_2u
+          ./Configure dist --prefix=$VITASDK/arm-vita-eabi
+          make build_libs
+          cp libcrypto.a libssl.a $VITASDK/arm-vita-eabi/lib/
+
       # The VitaOS Updater (one-press updates) ships inside VitaOS as
       # assets/updater.vpk: built from updater/ first, then bundled.
       - name: VitaOS Updater
@@ -23,22 +33,26 @@ jobs:
           cmake ..
           make
           cp updater.vpk ../../assets/updater.vpk
+
       - name: VitaOS
         run: |
           mkdir build && cd build
           cmake ..
           make -j"$(nproc)"
+
       - name: PS plugin
         run: |
           mkdir plugin/build && cd plugin/build
           cmake ..
           make
+
       - uses: actions/upload-artifact@v4
         with:
           name: vitaos
           path: |
             build/VitaOS.vpk
             plugin/build/vitaos_ps.suprx
+
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
