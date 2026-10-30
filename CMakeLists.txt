@@ -1,3 +1,4 @@
+CMake
 cmake_minimum_required(VERSION 3.16)
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
@@ -15,7 +16,7 @@ add_executable(vitaos
 target_include_directories(vitaos PRIVATE ${VITASDK}/arm-vita-eabi/include/freetype2)
 target_link_libraries(vitaos
   vita2d freetype png jpeg z m bz2
-  curl zstd z pthread
+  zstd z pthread
   SceDisplay_stub SceGxm_stub SceSysmodule_stub SceCtrl_stub SceTouch_stub SceAudio_stub
   SceIme_stub SceCommonDialog_stub SceAppUtil_stub SceAppMgr_stub SceRtc_stub ScePower_stub
   ScePgf_stub ScePvf_stub SceIofilemgr_stub taihen_stub SceAvPlayer_stub SceKernelModulemgr_stub
