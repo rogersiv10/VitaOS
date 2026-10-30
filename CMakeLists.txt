@@ -1,4 +1,3 @@
-CMake
 cmake_minimum_required(VERSION 3.16)
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   set(CMAKE_TOOLCHAIN_FILE "$ENV{VITASDK}/share/vita.toolchain.cmake" CACHE PATH "toolchain file")
@@ -7,6 +6,9 @@ project(vitaos C)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O2 -std=gnu11")
+# Forzamos al enlazador a ignorar los símbolos faltantes de OpenSSL en libcurl estático
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--unresolved-symbols=ignore-all")
+
 # Same system-program attribute as Arcade Hub: needed for taiLoadStartKernelModule.
 set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -a 0x2200000000000101")
 
@@ -16,7 +18,7 @@ add_executable(vitaos
 target_include_directories(vitaos PRIVATE ${VITASDK}/arm-vita-eabi/include/freetype2)
 target_link_libraries(vitaos
   vita2d freetype png jpeg z m bz2
-  zstd z pthread
+  curl zstd z pthread
   SceDisplay_stub SceGxm_stub SceSysmodule_stub SceCtrl_stub SceTouch_stub SceAudio_stub
   SceIme_stub SceCommonDialog_stub SceAppUtil_stub SceAppMgr_stub SceRtc_stub ScePower_stub
   ScePgf_stub ScePvf_stub SceIofilemgr_stub taihen_stub SceAvPlayer_stub SceKernelModulemgr_stub
