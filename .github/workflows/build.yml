@@ -12,16 +12,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk:latest
+    container: vitasdk/vitasdk:2023-05-01
     steps:
       - uses: actions/checkout@v4
-
-      # Forzamos un downgrade de curl y openssl a versiones estables anteriores en el mirror de Arch Linux de VitaSDK
-      - name: Downgrade to compatible curl/openssl
-        run: |
-          curl -L -O https://archive.archlinux.org/packages/a/arm-vita-eabi-openssl/arm-vita-eabi-openssl-1.0.2.u-1-any.pkg.tar.xz || true
-          # O más simple: limpiar y enlazar forzando los flags de búsqueda del compilador
-          echo "Setting up link flags..."
 
       # The VitaOS Updater (one-press updates) ships inside VitaOS as
       # assets/updater.vpk: built from updater/ first, then bundled.
@@ -35,7 +28,7 @@ jobs:
       - name: VitaOS
         run: |
           mkdir build && cd build
-          cmake .. -DCMAKE_EXE_LINKER_FLAGS="-lssl -lcrypto"
+          cmake ..
           make -j"$(nproc)"
 
       - name: PS plugin
