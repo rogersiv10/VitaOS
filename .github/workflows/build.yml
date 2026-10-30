@@ -15,20 +15,6 @@ jobs:
     container: vitasdk/vitasdk:latest
     steps:
       - uses: actions/checkout@v4
-      # The image ships OpenSSL 1.1.1, but its prebuilt curl was compiled
-      # against 1.0 headers: VitaOS would not link, and HTTPS failed when curl
-      # was rebuilt for 1.1.1. Install vitasdk's own OpenSSL 1.0.2 recipe
-      # (the pinned vita-openssl commit), which the prebuilt curl expects.
-      - name: OpenSSL 1.0.2
-        run: |
-          cd /tmp
-          git clone -q https://github.com/d3m3vilurr/vita-openssl.git
-          cd vita-openssl
-          git checkout -q cd52124ffc8e0f0fc8e2bdde93d4c022a0a7fc53
-          ./Configure no-threads --prefix=$VITASDK/arm-vita-eabi/ vita-cross
-          make
-          printf '#!/bin/bash\nmkdir -p $@\n' > util/mkdir-p.pl
-          make install_sw
       # The VitaOS Updater (one-press updates) ships inside VitaOS as
       # assets/updater.vpk: built from updater/ first, then bundled.
       - name: VitaOS Updater
