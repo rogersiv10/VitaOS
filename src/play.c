@@ -35,6 +35,7 @@
 #include "sfx.h"
 #include "search.h"
 #include "playtime.h"
+#include "apps.h"
 
 /* vita-elf-create refuses layouts where its SCE data would not fit at the end
  * of segment 0 ("segment 1 overlaps"); a little slack in .data moves it on. */
@@ -69,6 +70,9 @@ enum { V_RECENT, V_FAV, V_MULTI, V_SEARCH };
 #define MAX_RECENT 24
 #define MAX_FAV 512
 #define MAX_HIDDEN 1024
+#define MANUAL_FILE USER "appgames.tsv"   /* apps moved over from Apps by hand */
+#define MAX_MANUAL 64
+static int cmp_games(const void *pa, const void *pb);   /* defined further down */
 
 /* ---------- small helpers ---------- */
 
@@ -113,6 +117,51 @@ static unsigned int hexcolor(const char *s) {
     return RGBA8((v >> 16) & 255, (v >> 8) & 255, v & 255, 255);
 }
 
+/* Apps the player moved over from Apps by hand (user/appgames.tsv). They go on
+ * the shelf they chose, which is made here when the catalog has none yet. */
+static void add_manual(void) {
+    char *text = slurp(MANUAL_FILE, NULL);       /* kept: the games point into it */
+    if (!text) return;
+    static char empty[] = "";
+    char touched[MAX_SYS] = {0};
+    int added = 0;
+    char *save = NULL;
+    for (char *line = strtok_r(text, "\r\n", &save); line && added < MAX_MANUAL; line = strtok_r(NULL, "\r\n", &save)) {
+        char *f[7] = {0};
+        if (split(line, f, 7) < 7) continue;     /* tid sysid sysname accent title cover bg */
+        for (int s = VIRT; s < nsys; ++s) {      /* it may already sit on another shelf: this choice wins */
+            System *sy = &systems[s];
+            int w = 0;
+            for (int i = 0; i < sy->count; ++i)
+                if (strcmp(sy->games[i].kind, "app") || strcmp(sy->games[i].a1, f[0])) sy->games[w++] = sy->games[i];
+            sy->count = w;
+        }
+        int t = -1;
+        for (int s = VIRT; s < nsys; ++s) if (!strcmp(systems[s].id, f[1])) { t = s; break; }
+        if (t < 0) {                             /* the catalog has no such shelf yet */
+            if (nsys >= MAX_SYS) continue;
+            System *sy = &systems[nsys];
+            memset(sy, 0, sizeof(*sy));
+            sy->games = calloc(MAX_MANUAL + 1, sizeof(Game));
+            if (!sy->games) continue;
+            snprintf(sy->id, sizeof(sy->id), "%s", f[1]);
+            snprintf(sy->name, sizeof(sy->name), "%s", f[2]);
+            sy->accent = hexcolor(f[3]);
+            t = nsys++;
+        }
+        Game *gm = &systems[t].games[systems[t].count++];
+        memset(gm, 0, sizeof(*gm));
+        gm->origin = t;
+        gm->title = f[4]; gm->kind = "app"; gm->a1 = f[0]; gm->a2 = empty;
+        gm->cover = f[5]; gm->bg = f[6];
+        gm->logo = gm->video = gm->year = gm->genre = gm->players = gm->desc = empty;
+        touched[t] = 1;
+        added++;
+    }
+    for (int s = VIRT; s < nsys; ++s)
+        if (touched[s]) qsort(systems[s].games, systems[s].count, sizeof(Game), cmp_games);
+}
+
 static void load_catalog(void) {
     char *text = slurp(ROOT "systems.tsv", NULL);
     if (!text) return;
@@ -131,7 +180,7 @@ static void load_catalog(void) {
         if (!g) continue;
         int lines = 1;
         for (int i = 0; i < len; ++i) lines += g[i] == '\n';
-        s->games = calloc(lines, sizeof(Game));
+        s->games = calloc(lines + MAX_MANUAL, sizeof(Game));      /* room for apps added by hand */
         char *save = NULL;
         for (char *gl = strtok_r(g, "\n", &save); gl; gl = strtok_r(NULL, "\n", &save)) {
             char *x[12] = {0};
@@ -147,6 +196,7 @@ static void load_catalog(void) {
         }
         if (s->count) nsys++;
     }
+    add_manual();
 }
 
 /* ---------- user lists: Continue, Favourites, Multiplayer ---------- */
@@ -445,11 +495,29 @@ static void rename_game(Game *g) {
     rebuild_derived();
 }
 
+/* Apps moved over by hand: "Remove" sends them back to Apps instead of hiding them. */
+static int manual_remove(const char *tid) {
+    char *text = slurp(MANUAL_FILE, NULL);
+    if (!text) return 0;
+    static char out[MAX_MANUAL * 400 + 400];
+    int len = 0, found = 0;
+    char key[16], *save = NULL;
+    snprintf(key, sizeof(key), "%s\t", tid);
+    for (char *line = strtok_r(text, "\r\n", &save); line; line = strtok_r(NULL, "\r\n", &save)) {
+        if (!strncmp(line, key, strlen(key))) { found = 1; continue; }
+        len += snprintf(out + len, sizeof(out) - len, "%s\n", line);
+    }
+    free(text);
+    if (found) { write_file(MANUAL_FILE, out, len); apps_refresh_soon(); }
+    return found;
+}
+
 /* Remove from the menu for good; with delete_rom, erase the ROM too. */
 static void hide_game(int sys, int sel, int delete_rom) {
     System *sy = &systems[sys];
     Game g = sy->games[sel];
-    if (nhidden < MAX_HIDDEN) {
+    int moved = !strcmp(g.kind, "app") && manual_remove(g.a1);   /* back to Apps, not hidden */
+    if (!moved && nhidden < MAX_HIDDEN) {
         ref_set(&hidden[nhidden], &g);                  /* by the shown name: renames apply before hidden.tsv */
         nhidden++;
         save_refs(USER "hidden.tsv", hidden, nhidden);

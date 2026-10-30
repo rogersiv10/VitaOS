@@ -90,6 +90,15 @@ static const Sys SYS[] = {
 };
 #define NSYS (int)(sizeof(SYS) / sizeof(SYS[0]))
 
+/* The shelves an app can be put on by hand (Apps > options > Show in Play...). */
+int library_dest_count(void) { return 2 + NSYS; }
+
+void library_dest(int i, const char **id, const char **name, const char **accent) {
+    if (i == 0)      { *id = "vita"; *name = "PS Vita"; *accent = "60a5fa"; }
+    else if (i == 1) { *id = "psp";  *name = "PSP";     *accent = "c084fc"; }
+    else { *id = SYS[i - 2].id; *name = SYS[i - 2].name; *accent = SYS[i - 2].accent; }
+}
+
 static const char *const ROM_ROOTS[] = {
     "ux0:data/RetroFlow/ROMS", "ux0:roms", "ux0:ROMS", "ux0:data/roms", "uma0:roms", "uma0:data/RetroFlow/ROMS", 0,
 };
