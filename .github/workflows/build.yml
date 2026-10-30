@@ -12,12 +12,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk:2023-05-01
+    container: vitasdk/vitasdk:latest
     steps:
       - uses: actions/checkout@v4
 
-      # The VitaOS Updater (one-press updates) ships inside VitaOS as
-      # assets/updater.vpk: built from updater/ first, then bundled.
       - name: VitaOS Updater
         run: |
           mkdir updater/build && cd updater/build
