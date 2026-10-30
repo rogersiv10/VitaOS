@@ -12,19 +12,16 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: vitasdk/vitasdk:2024-05-13
+    container: vitasdk/vitasdk:latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: OpenSSL 1.0.2
+      # Downgrade curl to a version matching OpenSSL 1.0.2 in VitaSDK
+      - name: Fix curl/OpenSSL dependency mismatch
         run: |
-          apt-get update && apt-get install -y wget make gcc
-          wget https://github.com/openssl/openssl/archive/OpenSSL_1_0_2u.tar.gz
-          tar xf OpenSSL_1_0_2u.tar.gz
-          cd openssl-OpenSSL_1_0_2u
-          ./Configure dist --prefix=$VITASDK/arm-vita-eabi
-          make build_libs
-          cp libcrypto.a libssl.a $VITASDK/arm-vita-eabi/lib/
+          pacman -Syu --noconfirm
+          # Forzamos la instalación/actualización limpia de los paquetes base de desarrollo
+          pacman -S --noconfirm arm-vita-eabi-openssl arm-vita-eabi-curl
 
       # The VitaOS Updater (one-press updates) ships inside VitaOS as
       # assets/updater.vpk: built from updater/ first, then bundled.
