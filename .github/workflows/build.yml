@@ -23,6 +23,16 @@ jobs:
           make
           cp updater.vpk ../../assets/updater.vpk
 
+      - name: Diagnose OpenSSL
+        run: |
+          L=$VITASDK/arm-vita-eabi/lib
+          ls -l $L/libssl.a $L/libcrypto.a $L/libcurl.a
+          grep -a -m1 -o "OpenSSL [0-9][0-9.]*[a-z]*" $L/libcrypto.a || true
+          for s in TLS_method BIO_meth_new EVP_MD_CTX_new; do
+            printf '%s: ' $s
+            $VITASDK/bin/arm-vita-eabi-nm $L/libcrypto.a $L/libssl.a 2>/dev/null | grep -c " T $s"
+          done
+      
       - name: VitaOS
         run: |
           mkdir build && cd build
