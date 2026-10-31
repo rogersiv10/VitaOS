@@ -5,6 +5,10 @@
  * abort the whole app (crash dump 2026-09-27: thread "store",
  * ssleay_rand_add -> __assert_func -> abort, shown as C2-12828-1).
  *
+ * OpenSSL 1.1.0 and later are thread-safe by themselves: the locking and id
+ * callbacks below only exist for 1.0.x (they are compiled out otherwise), and
+ * the RAND_METHOD callbacks change their return type (seed and add return int).
+ *
  * Call ssl_threads_init() first thing in main, before any thread exists;
  * it also runs curl_global_init, which is not thread-safe either. */
 #include <psp2/kernel/threadmgr.h>
@@ -16,6 +20,11 @@
 #include <stdio.h>
 #include "ssl_locks.h"
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define OLD_OPENSSL 1
+#endif
+
+#ifdef OLD_OPENSSL
 static SceUID *locks;
 
 static void lock_cb(int mode, int n, const char *file, int line) {
@@ -31,6 +40,7 @@ static unsigned long id_cb(void) { return (unsigned long)sceKernelGetThreadId();
  * of errno), md_rand thinks the lock is already held and skips it, and the
  * crash above came back (dump 2026-09-27 20:40). */
 static void threadid_cb(CRYPTO_THREADID *id) { CRYPTO_THREADID_set_numeric(id, (unsigned long)sceKernelGetThreadId()); }
+#endif /* OLD_OPENSSL */
 
 /* The real fix. This OpenSSL is built without OPENSSL_THREADS, so md_rand.c
  * keeps an assert (md_c[1] == md_count[1], checked after the lock is dropped)
@@ -45,8 +55,13 @@ static int vita_rand_bytes(unsigned char *buf, int num) {
     }
     return 1;
 }
+#ifdef OLD_OPENSSL
 static void vita_rand_seed(const void *buf, int num) { (void)buf; (void)num; }
 static void vita_rand_add(const void *buf, int num, double e) { (void)buf; (void)num; (void)e; }
+#else
+static int vita_rand_seed(const void *buf, int num) { (void)buf; (void)num; return 1; }
+static int vita_rand_add(const void *buf, int num, double e) { (void)buf; (void)num; (void)e; return 1; }
+#endif
 static void vita_rand_cleanup(void) {}
 static int vita_rand_status(void) { return 1; }
 static const RAND_METHOD vita_rand = {vita_rand_seed, vita_rand_bytes, vita_rand_cleanup, vita_rand_add, vita_rand_bytes,
@@ -54,6 +69,7 @@ static const RAND_METHOD vita_rand = {vita_rand_seed, vita_rand_bytes, vita_rand
 
 int ssl_threads_init(void) {
     RAND_set_rand_method(&vita_rand);
+#ifdef OLD_OPENSSL
     int n = CRYPTO_num_locks();
     locks = calloc(n, sizeof(SceUID));
     if (!locks) return -1;
@@ -66,5 +82,6 @@ int ssl_threads_init(void) {
     CRYPTO_THREADID_set_callback(threadid_cb);
     CRYPTO_set_id_callback(id_cb);
     CRYPTO_set_locking_callback(lock_cb);
+#endif
     return curl_global_init(CURL_GLOBAL_ALL) == CURLE_OK ? 0 : -1;
 }
