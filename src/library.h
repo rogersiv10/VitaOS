@@ -20,7 +20,4 @@ int library_fetch_art(volatile int *done, volatile int *got);
 /* Test: box art for the catalog under ROOT, at most CAP tries per system. */
 int library_art_into(const char *root, int cap, volatile int *done, volatile int *got);
 
-int library_dest_count(void);     /* PS Vita, PSP, then every system Play knows (for "Show in Play...") */
-void library_dest(int i, const char **id, const char **name, const char **accent);
-
 #endif

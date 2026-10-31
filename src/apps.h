@@ -8,7 +8,6 @@ const char *apps_hint(void);
 int apps_count(void);
 void apps_prewarm(void);               /* starts a background scan of ux0:app */
 const char *apps_title_for(const char *tid);
-void apps_refresh_soon(void);          /* rescan Apps (and reload Play) in a moment */
 
 const char *app_art(const char *tid, const char *file, char *out, int max);   /* ur0:appmeta first */
 

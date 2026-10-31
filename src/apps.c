@@ -20,8 +20,6 @@
 #include "camera.h"
 #include "memo.h"
 #include "store.h"
-#include "library.h"
-#include "play.h"
 
 #define MAX_APPS 400
 #define COLS 6
@@ -113,33 +111,12 @@ static char *vita_shelf(void) {
     return b;
 }
 
-/* Apps the player moved to Play by hand: user/appgames.tsv, one line each:
- * tid, system id, system name, accent, title, cover, background. */
-#define MANUAL "ux0:data/arcadehub/user/appgames.tsv"
-#define MAX_MANUAL 64
-static int refresh_in;
-void apps_refresh_soon(void) { refresh_in = 30; }
-
-/* The whole file with a '\n' in front, so "\n<tid>\t" finds a line. */
-static char *manual_read(void) {
-    SceUID fd = sceIoOpen(MANUAL, SCE_O_RDONLY, 0);
-    if (fd < 0) return NULL;
-    int size = (int)sceIoLseek(fd, 0, SCE_SEEK_END);
-    sceIoLseek(fd, 0, SCE_SEEK_SET);
-    char *b = size > 0 && size < 256 * 1024 ? malloc(size + 2) : NULL;
-    int n = 0;
-    if (b) { b[0] = '\n'; n = sceIoRead(fd, b + 1, size); b[1 + (n > 0 ? n : 0)] = 0; }
-    sceIoClose(fd);
-    return b;
-}
-
 static void scan(void) {
     STAGE("apps: scan");
     napps = 0;
     SceUID d = sceIoDopen("ux0:app");
     if (d < 0) return;
     char *games = vita_shelf();
-    char *manual = manual_read();
     SceIoDirent e;
     while (napps < MAX_APPS) {
         memset(&e, 0, sizeof(e));
@@ -160,14 +137,10 @@ static void scan(void) {
         char key[16];
         snprintf(key, sizeof(key), "\t%s\t", a->tid);
         if (games && strstr(games, key)) continue;   /* a game: it lives in Play */
-        char mk[16];
-        snprintf(mk, sizeof(mk), "\n%s\t", a->tid);
-        if (manual && strstr(manual, mk)) continue; /* moved to Play by hand */
         ++napps;
     }
     sceIoDclose(d);
     free(games);
-    free(manual);
     qsort(apps, napps, sizeof(App), by_title);
     apply_order();
     loaded = 1;
@@ -283,71 +256,12 @@ const char *apps_hint(void) {
     return "X open  hold X move  /\\ options  [] refresh  L R tabs";
 }
 
-static int manual_add(const App *a, const char *sysid, const char *sysname, const char *accent) {
-    static char out[MAX_MANUAL * 400 + 400];
-    int len = 0, count = 0;
-    char *old = manual_read();
-    if (old) {
-        char key[16];
-        snprintf(key, sizeof(key), "%s\t", a->tid);
-        for (char *line = strtok(old, "\n"); line; line = strtok(NULL, "\n")) {
-            if (!strncmp(line, key, strlen(key))) continue;          /* choosing again replaces it */
-            if (count >= MAX_MANUAL) { free(old); return 0; }
-            len += snprintf(out + len, sizeof(out) - len, "%s\n", line);
-            count++;
-        }
-        free(old);
-    }
-    char icon[96], pic[96], title[64];
-    app_art(a->tid, "icon0.png", icon, sizeof(icon));
-    app_art(a->tid, "pic0.png", pic, sizeof(pic));
-    snprintf(title, sizeof(title), "%s", a->title);
-    for (char *p = title; *p; ++p) if (*p == '\t' || *p == '\n') *p = ' ';
-    len += snprintf(out + len, sizeof(out) - len, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-                    a->tid, sysid, sysname, accent, title, icon, pic);
-    ui_save(MANUAL, out, len, 0);
-    return 1;
-}
-
-/* ui_menu does not scroll (about 7 rows fit): the systems come in pages of 6. */
-static int pick_dest(void) {
-    int total = library_dest_count(), page = 0;
-    for (;;) {
-        const char *items[7];
-        int idx[7], n = 0;
-        for (int i = page * 6; i < total && n < 6; ++i) {
-            const char *id, *name, *acc;
-            library_dest(i, &id, &name, &acc);
-            items[n] = name; idx[n++] = i;
-        }
-        int more = (page + 1) * 6 < total;
-        if (more) items[n++] = "More systems...";
-        int k = ui_menu("Show in Play as", items, n);
-        if (k < 0) return -1;
-        if (more && k == n - 1) { page++; continue; }
-        return idx[k];
-    }
-}
-
-static void to_play(const App *a) {
-    int d = pick_dest();
-    if (d < 0) return;
-    const char *id, *name, *accent;
-    library_dest(d, &id, &name, &accent);
-    if (!manual_add(a, id, name, accent)) { ui_toast("Play can hold 64 added apps", C_ACCENT); return; }
-    char m[96];
-    snprintf(m, sizeof(m), "%.40s is now in Play: %s", a->title, name);
-    ui_toast(m, C_ACCENT);
-    apps_refresh_soon();     /* the save runs in the background: reload a moment later */
-}
-
 static void options(int i) {
     App *a = &apps[i];
-    static const char *const items[] = {"About this app", "Show in Play...", "Delete this app"};
-    int k = ui_menu(a->title, items, 3);
+    static const char *const items[] = {"About this app", "Delete this app"};
+    int k = ui_menu(a->title, items, 2);
     if (k == 0) info(a);
-    if (k == 1) to_play(a);
-    if (k == 2) {
+    if (k == 1) {
         char msg[200];
         snprintf(msg, sizeof(msg), "Delete %s? The app and its data are removed from the Vita. This can't be undone.", a->title);
         if (ui_confirm("Delete app", msg) && store_uninstall(a->tid, a->title) == 0) ui_toast("Deleting\xE2\x80\xA6", C_ACCENT);
@@ -355,7 +269,6 @@ static void options(int i) {
 }
 
 void apps_update(const Input *in) {
-    if (refresh_in > 0 && --refresh_in == 0) { play_reload(); apps_prewarm(); }
     if (camera_active()) { camera_update(in); return; }
     if (memo_active()) { memo_update(in); return; }
     int count = NB + (loaded ? napps : 0);
