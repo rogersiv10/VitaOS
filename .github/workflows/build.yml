@@ -48,6 +48,11 @@ jobs:
           path: |
             build/VitaOS.vpk
             plugin/build/vitaos_ps.suprx
+      # The ELF with symbols, to read crash dumps (vita-parse-core) of this exact build.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vitaos-elf
+          path: build/vitaos
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
